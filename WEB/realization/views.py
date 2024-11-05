@@ -50,6 +50,67 @@ class HomeView(ListCreateAPIView):
         return Response({'task_id': task.id, 'status': 'Task is processing'}, status=status.HTTP_202_ACCEPTED)
 
 
+class TaskStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, task_id, *args, **kwargs):
+        task = AsyncResult(task_id)
+
+        if task:
+            response_data = {
+                'task_id': task.id,
+                'status': task.state,
+                'result': None,  # Default to None
+            }
+            # Populate result if the task is successful
+            if task.state == 'SUCCESS' and isinstance(task.result, dict):
+                id = task.result.get('task_id')
+                monte_carlo_obj = MonteCarloIntegrationModel.objects.filter(id=id).first()
+                response_data['result'] = {
+                    'id': task.result.get('task_id'),  # Use task_id from result
+                    'function': monte_carlo_obj.function,
+                    'lower_bound': monte_carlo_obj.lower_bound,
+                    'upper_bound': monte_carlo_obj.upper_bound,
+                    'estimated_area': task.result.get('estimated_area'),
+                    'graphic_url': monte_carlo_obj.get_graphic(),  # Get the URL for the graphic
+                    'time_needed': monte_carlo_obj.time_needed,
+                }
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        return Response({'error': 'Task not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class PauseTaskView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, task_id, *args, **kwargs):
+        try:
+            task = MonteCarloIntegrationModel.objects.get(id=task_id, user=request.user)
+            task.status = "Paused"
+            task.save()
+            return Response({"message": "Task paused successfully."}, status=status.HTTP_200_OK)
+        except MonteCarloIntegrationModel.DoesNotExist:
+            return Response({"error": "Task not found or permission denied."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class ResumeTaskView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, task_id, *args, **kwargs):
+        try:
+            task = MonteCarloIntegrationModel.objects.get(id=task_id, user=request.user)
+            task.status = "Running"
+            task.save()
+            # Restart task if needed or resume where it left off
+            perform_monte_carlo_integration.apply_async(
+                (task.user_id, task.function, task.lower_bound, task.upper_bound, task.progress),
+                task_id=task_id
+            )
+            return Response({"message": "Task resumed successfully."}, status=status.HTTP_200_OK)
+        except MonteCarloIntegrationModel.DoesNotExist:
+            return Response({"error": "Task not found or permission denied."}, status=status.HTTP_404_NOT_FOUND)
+
+
 class SignUpView(GenericAPIView):
     serializer_class = UserSerializer
     permission_classes = [AllowAny]

@@ -16,6 +16,7 @@ class MonteCarloIntegrationModel(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)  # Store the time of creation
     time_needed = models.FloatField(null=True, blank=True)
 
+
     def __str__(self):
         return f"{self.user.username} - {self.function} [{self.lower_bound}, {self.upper_bound}]"
 
