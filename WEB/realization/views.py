@@ -1,6 +1,6 @@
-import time
-
+from celery.contrib.abortable import AbortableAsyncResult
 from celery.result import AsyncResult
+from celery.worker.control import revoke
 from django.contrib.auth import login, logout as auth_logout, authenticate
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -15,13 +15,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.generics import ListCreateAPIView
 from .models import MonteCarloIntegrationModel
 from .serializers import MonteCarloSerializer
-import numpy as np
 import matplotlib
-import matplotlib.pyplot as plt
-import io
-from django.core.files.base import ContentFile
 from .tasks import perform_monte_carlo_integration
-
 
 matplotlib.use("Agg")
 
@@ -54,7 +49,7 @@ class TaskStatusView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, task_id, *args, **kwargs):
-        task = AsyncResult(task_id)
+        task = AbortableAsyncResult(task_id)
 
         if task:
             response_data = {
@@ -63,7 +58,7 @@ class TaskStatusView(APIView):
                 'result': None,  # Default to None
             }
             # Populate result if the task is successful
-            if task.state == 'SUCCESS' and isinstance(task.result, dict):
+            if task.state == 'SUCCESS' and isinstance(task.result, dict) and len(task.result) != 1:
                 id = task.result.get('task_id')
                 monte_carlo_obj = MonteCarloIntegrationModel.objects.filter(id=id).first()
                 response_data['result'] = {
@@ -75,40 +70,35 @@ class TaskStatusView(APIView):
                     'graphic_url': monte_carlo_obj.get_graphic(),  # Get the URL for the graphic
                     'time_needed': monte_carlo_obj.time_needed,
                 }
+            elif task.state == 'SUCCESS' and isinstance(task.result, dict) and len(task.result) == 1:
+                response_data = {
+                    'status': "Canceled",
+                    "result": "Task was canceled."
+                }
             return Response(response_data, status=status.HTTP_200_OK)
 
         return Response({'error': 'Task not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
-class PauseTaskView(APIView):
+class Delete_Task_View(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, task_id, *args, **kwargs):
+
+        task = AbortableAsyncResult(task_id)
+        print(task)
+        # Check if the task is still revocable
+        if task.state in ["SUCCESS", "FAILURE", "REVOKED"]:
+            return Response({"error": "Task is already completed and cannot be revoked."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
         try:
-            task = MonteCarloIntegrationModel.objects.get(id=task_id, user=request.user)
-            task.status = "Paused"
-            task.save()
-            return Response({"message": "Task paused successfully."}, status=status.HTTP_200_OK)
-        except MonteCarloIntegrationModel.DoesNotExist:
-            return Response({"error": "Task not found or permission denied."}, status=status.HTTP_404_NOT_FOUND)
-
-
-class ResumeTaskView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, task_id, *args, **kwargs):
-        try:
-            task = MonteCarloIntegrationModel.objects.get(id=task_id, user=request.user)
-            task.status = "Running"
-            task.save()
-            # Restart task if needed or resume where it left off
-            perform_monte_carlo_integration.apply_async(
-                (task.user_id, task.function, task.lower_bound, task.upper_bound, task.progress),
-                task_id=task_id
-            )
-            return Response({"message": "Task resumed successfully."}, status=status.HTTP_200_OK)
-        except MonteCarloIntegrationModel.DoesNotExist:
-            return Response({"error": "Task not found or permission denied."}, status=status.HTTP_404_NOT_FOUND)
+            # Attempt to revoke the task
+            task.abort()
+            print(task.state)
+            return Response({"result": "The task was canceled."})
+        except Exception as e:
+            return Response({"error": f"Failed to revoke task: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SignUpView(GenericAPIView):

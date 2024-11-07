@@ -5,12 +5,15 @@ from celery import shared_task
 import numpy as np
 import matplotlib.pyplot as plt
 import io
+
+from celery.contrib.abortable import AbortableTask
+from celery.exceptions import Ignore
 from django.core.files.base import ContentFile
 from .models import MonteCarloIntegrationModel
 
 
-@shared_task
-def perform_monte_carlo_integration(user_id, function_expr, lower_bound, upper_bound, num_samples=2500000,
+@shared_task(bind=True, base=AbortableTask)
+def perform_monte_carlo_integration(self, user_id, function_expr, lower_bound, upper_bound, num_samples=2500000,
                                     display_fraction=0.001):
     """
     Perform the Monte Carlo integration and save results to the database.
@@ -19,15 +22,18 @@ def perform_monte_carlo_integration(user_id, function_expr, lower_bound, upper_b
         # Convert the function expression into a Python lambda
         func = lambda x: eval(function_expr)
         start_time = time.time()
-
-        # Perform Monte Carlo integration
-        estimated_area, x_inside, y_inside, x_outside, y_outside = monte_carlo_integration(func, lower_bound,
-                                                                                           upper_bound, num_samples,
-                                                                                           display_fraction)
-
+        print(0)
+        # Perform Monte Carlo integration with revocation checks
+        estimated_area, x_inside, y_inside, x_outside, y_outside = monte_carlo_integration(
+            func, lower_bound, upper_bound, num_samples, display_fraction, task=self
+        )
+        print(1)
+        if estimated_area is None:
+            print(2)
+            raise Ignore()
+        print(3)
         end_time = time.time()
         time_needed = round(end_time - start_time, 2)
-
         # Generate plot and save to the database
         graphic = generate_plot(func, lower_bound, upper_bound, estimated_area, x_inside, y_inside, x_outside,
                                 y_outside, function_expr)
@@ -43,31 +49,32 @@ def perform_monte_carlo_integration(user_id, function_expr, lower_bound, upper_b
             time_needed=time_needed  # Save execution time
         )
 
-        # Return the result with the URL of the graphic
         return {
             'task_id': monte_carlo_instance.id,
             'estimated_area': estimated_area,
         }
 
     except Exception as e:
-        # Log the error for debugging
         print(f"Error in task: {str(e)}")
         return {'error': str(e)}
 
 
-def monte_carlo_integration(func, a, b, num_samples, display_fraction):
-    # Your existing implementation remains the same
+def monte_carlo_integration(func, a, b, num_samples, display_fraction, task=None):
     count_inside = 0
     x_inside = []
     y_inside = []
     x_outside = []
     y_outside = []
 
-    # Determine the minimum and maximum y-values on the interval [a, b]
     y_min = min(func(x) for x in np.linspace(a, b, 1000))
     y_max = max(func(x) for x in np.linspace(a, b, 1000))
 
     for i in range(num_samples):
+        # Periodically check if the task was revoked
+        if task and i % 10000 == 0 and task.is_aborted():
+            print("Task was revoked, stopping early.")
+            return None, None, None, None, None  # Early return to stop task
+
         x = np.random.uniform(a, b)
         y = np.random.uniform(y_min, y_max)
 
