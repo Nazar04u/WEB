@@ -1,0 +1,84 @@
+/* Home.css */
+
+.home-container {
+    width: 80%;
+    margin: auto;
+    text-align: center;
+    font-family: Arial, sans-serif;
+}
+
+.input-section {
+    margin-bottom: 20px;
+}
+
+.input-section label,
+.input-section input {
+    display: block;
+    margin: 5px auto;
+}
+
+.input-section button {
+    margin-top: 10px;
+    padding: 8px 16px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.input-section button:hover {
+    background-color: #45a049;
+}
+
+.result-card {
+    margin: 20px auto;
+    padding: 15px;
+    width: 70%;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.result-image {
+    width: 100%;
+    margin-top: 10px;
+    border-radius: 4px;
+}
+
+.history-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+}
+
+.history-card {
+    width: 45%;
+    background-color: #f1f1f1;
+    padding: 15px;
+    margin: 10px;
+    border-radius: 8px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+    text-align: left;
+}
+
+.history-image {
+    width: 100%;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.logout-button {
+    margin-top: 20px;
+    padding: 8px 16px;
+    background-color: #f44336;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.logout-button:hover {
+    background-color: #d32f2f;
+}

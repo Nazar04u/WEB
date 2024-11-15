@@ -1,0 +1,39 @@
+# Node.js dependencies
+/frontend/realization/node_modules/
+frontend/realization/package-lock.json
+
+# Python virtual environment
+/backend/venv/
+/backend/WEB/venv/
+
+# Compiled Python files
+*.pyc
+__pycache__/
+
+# Django specific
+*.sqlite3
+/media/
+*.log
+*.env
+env/
+
+
+# VSCode & IDE specific
+.idea/
+.vscode/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# NPM debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage and test results
+*.coverage
+*.coverage.xml
+*.lcov
+

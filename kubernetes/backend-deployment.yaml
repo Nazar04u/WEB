@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: django-backend
+  labels:
+    app: django-backend
+spec:
+  replicas: 2  # дві репліки для балансування навантаження
+  selector:
+    matchLabels:
+      app: django-backend
+  template:
+    metadata:
+      labels:
+        app: django-backend
+    spec:
+      containers:
+        - name: django-backend
+          image: nazar04u/web_completion-backend:latest 
+          ports:
+            - containerPort: 8008
+          env:
+            - name: DATABASE_NAME
+              value: "WEB_DB"
+            - name: DATABASE_USER
+              value: "postgres"
+            - name: DATABASE_PASSWORD
+              value: "24122004naz"
+            - name: DATABASE_HOST
+              value: "postgres-service"
+            - name: DATABASE_PORT
+              value: "5432"
+            - name: CELERY_BROKER_URL
+              value: "amqp://guest:guest@rabbitmq:5672//"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: django-backend-service
+spec:
+  selector:
+    app: django-backend
+  ports:
+    - protocol: TCP
+      port: 8008
+      targetPort: 8008
+  type: LoadBalancer  # для балансування навантаження
